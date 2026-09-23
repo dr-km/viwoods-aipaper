@@ -27,7 +27,16 @@ adb tcpip 5555
 adb connect <device-ip>:5555
 ```
 
-This survives screen-lock cycles much better — reconnect with the same command/port instead of hunting for a new one each time. Tradeoff: this mode doesn't use the same per-connection TLS pairing as "Wireless debugging," so it's fine on a trusted home network but slightly less locked-down. Revert by toggling "Wireless debugging" off/on in Developer Options.
+This survives screen-lock cycles much better — reconnect with the same command/port instead of hunting for a new one each time.
+
+**⚠️ Known issue — needs a real fix, not just a caveat:** `adb tcpip` mode is meaningfully less safe than paired "Wireless debugging" and shouldn't be left running:
+
+- It listens on a fixed TCP port reachable by **any device on the same network**, not just a specifically-paired one.
+- It uses the older cleartext-ish adb protocol, not the TLS-wrapped channel "Wireless debugging" uses.
+- Because this device has genuine root reachable from an authorized `adb shell` (see above), anyone who manages to get an authorized/trusted connection to this open port gets a straight line to root, not just limited shell access.
+- Risk isn't just "this network" — if wireless debugging + tcpip mode is left on and the device later joins a public/hotel/coffee-shop network, the same open port travels with it.
+
+No real fix implemented yet — for now, treat this as **temporary/session-only**: turn it on for active work, then explicitly revert when done (toggle "Wireless debugging" off/on in Developer Options kills tcpip mode and goes back to paired-only). Don't leave it running between sessions. A better fix would be a small script that re-locks adb (`adb usb` to drop tcpip mode, or fully re-lock via `viwoods-unlock.sh off`) as a matching bookend to this one — not written yet.
 
 ## debloat/
 
