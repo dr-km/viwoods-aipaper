@@ -29,18 +29,24 @@ adb connect <device-ip>:5555
 
 This survives screen-lock cycles much better — reconnect with the same command/port instead of hunting for a new one each time.
 
-**⚠️ Known issue — needs a real fix, not just a caveat:** `adb tcpip` mode is meaningfully less safe than paired "Wireless debugging" and shouldn't be left running:
+**Security note:** `adb tcpip` mode is meaningfully less safe than paired "Wireless debugging" — fixed port reachable by any device on the network, older cleartext-ish protocol instead of TLS, and a straight line to root given this device's `su` access (see above). In practice the real exposure window is narrower than it sounds, though:
 
-- It listens on a fixed TCP port reachable by **any device on the same network**, not just a specifically-paired one.
-- It uses the older cleartext-ish adb protocol, not the TLS-wrapped channel "Wireless debugging" uses.
-- Because this device has genuine root reachable from an authorized `adb shell` (see above), anyone who manages to get an authorized/trusted connection to this open port gets a straight line to root, not just limited shell access.
-- Risk isn't just "this network" — if wireless debugging + tcpip mode is left on and the device later joins a public/hotel/coffee-shop network, the same open port travels with it.
+- WLAN itself powers off when the display sleeps, so the port isn't reachable at all during idle periods — only while the screen is actively on.
+- Wireless debugging is only ever enabled on a trusted home network here, not taken to public/hotel/coffee-shop WiFi.
 
-No real fix implemented yet — for now, treat this as **temporary/session-only**: turn it on for active work, then explicitly revert when done (toggle "Wireless debugging" off/on in Developer Options kills tcpip mode and goes back to paired-only). Don't leave it running between sessions. A better fix would be a small script that re-locks adb (`adb usb` to drop tcpip mode, or fully re-lock via `viwoods-unlock.sh off`) as a matching bookend to this one — not written yet.
+Given those two constraints, leaving it on between work sessions is a reasonable tradeoff on this setup. Worth reassessing if either constraint changes — e.g. if wireless debugging ever gets enabled away from home, revert it first (toggle "Wireless debugging" off/on in Developer Options, or `viwoods-unlock.sh off` to fully re-lock).
 
 ## debloat/
 
 [`debloat/disabled-apps.md`](debloat/disabled-apps.md) — every package disabled on this device via `pm disable-user`, grouped by category with the reasoning, plus a caveats section on what was deliberately *not* touched and why (real telephony hardware, no physical speaker despite the OS reporting one, a GMS auto-re-enable quirk to watch for).
+
+[`debloat/restore-debloat.sh`](debloat/restore-debloat.sh) — re-applies the full list in one shot (mirrors the doc above). Useful after a factory reset, which wipes all `pm disable-user` state along with the adb unlock property.
+
+```
+./debloat/restore-debloat.sh                 # apply to the only/default device
+./debloat/restore-debloat.sh -s <serial>     # apply to a specific device
+./debloat/restore-debloat.sh -s <serial> -n  # dry run — print commands, don't execute
+```
 
 ## Device
 
