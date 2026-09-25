@@ -39,27 +39,30 @@ Not obvious → re-enable everything from the last debloat pass (loop below), th
 ## Recovery
 
 Needs adb shell unlocked and `su` (userdebug). This `su` is AOSP-style: `su 0 <cmd>`, not `su -c`.
+Run from the repo root (macOS; on Linux use `sha256sum` for the local hash). `stop` freezes the display until `start` — expected.
 
 ```
 PKG=com.android.sdksandbox
 D=/data/system/users/0
 adb shell su 0 stop                                    # halt loop; adbd stays up
 
-# base = the complete file: -backup.xml if present (PackageManager prefers it), else main
-adb exec-out "su 0 cat $D/package-restrictions-backup.xml" > base.abx
-python3 abx_patch.py base.abx --check                  # must print OK (fully parses; catches truncation)
-python3 abx_patch.py base.abx $PKG enabled enabledCaller --out fixed.abx
+# base = the complete file: -backup.xml if a write was interrupted (PackageManager prefers it), else main
+if adb shell "su 0 test -e $D/package-restrictions-backup.xml"; then B=package-restrictions-backup.xml; else B=package-restrictions.xml; fi
+echo "base = $B"
+adb exec-out "su 0 cat $D/$B" > base.abx
+python3 recovery/abx_patch.py base.abx --check         # must print OK (fully parses; catches truncation)
+python3 recovery/abx_patch.py base.abx $PKG enabled enabledCaller --out fixed.abx
 
 # check with the platform decoder: only $PKG's line differs
 adb push fixed.abx /data/local/tmp/fixed.abx
 adb shell "abx2xml /data/local/tmp/fixed.abx -" > fixed.xml
-adb shell "su 0 abx2xml $D/package-restrictions-backup.xml -" > base.xml
+adb shell "su 0 abx2xml $D/$B -" > base.xml
 diff base.xml fixed.xml
 
-# install in place (keeps owner/mode/SELinux label), verify, drop the stale backup
+# install in place (keeps owner/mode/SELinux label), verify, drop any stale backup
 adb shell "su 0 sh -c 'cat /data/local/tmp/fixed.abx > $D/package-restrictions.xml'"
 adb shell "su 0 sha256sum $D/package-restrictions.xml"; shasum -a 256 fixed.abx    # must match
-adb shell "su 0 rm $D/package-restrictions-backup.xml"
+adb shell "su 0 rm -f $D/package-restrictions-backup.xml"
 adb shell rm /data/local/tmp/fixed.abx
 
 adb shell su 0 start                                   # soft restart — NOT adb reboot
@@ -67,18 +70,20 @@ adb shell su 0 start                                   # soft restart — NOT ad
 
 Expected diff (example):
 
-```
+```diff
 < <pkg name="com.android.sdksandbox" enabled="3" enabledCaller="shell:1000" first-install-time="…" />
 > <pkg name="com.android.sdksandbox" first-install-time="…" />
 ```
 
-Several packages: run the patcher once per package, feeding each output to the next.
+Several packages: run the patcher once per package, feeding each output to the next. Unknown packages are skipped, not fatal. Only list packages you disabled — the named attributes are dropped whatever their value (an explicit `enabled="1"` reverts to the package default).
 
 ```
+PKGS="com.android.sdksandbox com.example.other"        # edit
 cp base.abx cur.abx
-for p in com.android.sdksandbox <other packages>; do
-  python3 abx_patch.py cur.abx "$p" enabled enabledCaller --out next.abx && mv next.abx cur.abx
-done      # then use cur.abx as fixed.abx above
+for p in $PKGS; do
+  python3 recovery/abx_patch.py cur.abx "$p" enabled enabledCaller --out next.abx && mv next.abx cur.abx || echo "skipped: $p"
+done
+cp cur.abx fixed.abx                                   # then continue from the platform-decoder check above
 ```
 
 ## Verify
@@ -94,7 +99,7 @@ Committed = permanent. Then `adb reboot` once to confirm: booted in ~32 s, disab
 ## Not tested
 
 - No adb shell / `su`: only known path is factory reset from recovery (wipes `/data`, incl. the adb unlock → re-run `viwoods-unlock.sh`). Don't re-run an old `restore-debloat.sh` that lists `sdksandbox`.
-- Multi-package chain: file-level only (each step verified; one re-indexed edit decoded on-device). Not run end to end.
+- The Recovery block as now written: run read-only on a healthy device (up to the install step) and the multi-package loop on a real file. `stop` / install / `start` ran in the real incident as separate commands, not re-run as this exact block.
 - Other causes, e.g. `pm uninstall --user 0` (`installed="false"`): patcher takes any attribute name, but this path is untried.
 
 ## Prevent
