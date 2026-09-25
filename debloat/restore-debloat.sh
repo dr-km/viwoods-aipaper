@@ -2,8 +2,9 @@
 #
 # restore-debloat.sh — re-apply the full debloat pass documented in disabled-apps.md.
 #
-# Reversible: pm disable-user only, nothing uninstalled. Requires the device to
-# already be adb-unlocked (see ../viwoods-unlock.sh) and connected.
+# Reversible while the device boots: pm disable-user only, nothing uninstalled.
+# A bad disable only shows on the NEXT boot — reboot once after running this.
+# Requires the device to already be adb-unlocked (see ../viwoods-unlock.sh) and connected.
 #
 # Usage:
 #   ./restore-debloat.sh                 # apply to the only/default device
@@ -73,7 +74,7 @@ PACKAGES=(
   com.android.adservices.api
   com.android.ondevicepersonalization.services
   com.android.federatedcompute.services
-  com.android.sdksandbox
+  # (com.android.sdksandbox deliberately omitted — disabling it bootloops the device; see ../recovery/)
   # viwoods first-party — redundant with sideloaded apps
   com.viwoods.vistore
   com.viwoods.read
@@ -151,5 +152,6 @@ done
 
 if [[ $DRY_RUN -eq 0 ]]; then
   echo ">> done. Verify with: adb shell pm list packages -d | wc -l"
+  echo ">> now reboot once (adb reboot) and confirm it boots — a bad disable only shows on the next boot"
   [[ $fail -eq 0 ]] || echo ">> one or more packages failed to disable — see above" >&2
 fi

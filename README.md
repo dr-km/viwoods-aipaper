@@ -42,11 +42,19 @@ Given those two constraints, leaving it on between work sessions is a reasonable
 
 [`debloat/restore-debloat.sh`](debloat/restore-debloat.sh) — re-applies the full list in one shot (mirrors the doc above). Useful after a factory reset, which wipes all `pm disable-user` state along with the adb unlock property.
 
+**Reboot once after any pass.** A bad disable only shows on the next boot — e.g. disabling `com.android.sdksandbox` bootloops the device (see below).
+
 ```
 ./debloat/restore-debloat.sh                 # apply to the only/default device
 ./debloat/restore-debloat.sh -s <serial>     # apply to a specific device
 ./debloat/restore-debloat.sh -s <serial> -n  # dry run — print commands, don't execute
 ```
+
+## recovery/
+
+[`recovery/bootloop-after-disable.md`](recovery/bootloop-after-disable.md) — bootloop after a bad `pm disable-user` (worked example: `com.android.sdksandbox`): symptoms, cause, why edit + reboot fails after an OTA (`/data` checkpoint rollback), and the on-device fix over adb + root.
+
+[`recovery/abx_patch.py`](recovery/abx_patch.py) — removes attributes from one `<pkg>` in an Android Binary XML file (`xml2abx` round-trips are lossy). Used by the fix.
 
 ## Device
 

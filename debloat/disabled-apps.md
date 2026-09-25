@@ -1,8 +1,8 @@
 # Disabled apps
 
 Device: viwoods AiPaper Reader (model `AiPaper_Reader`, Android 16, MediaTek).
-Method: `pm disable-user --user 0 <package>` over adb shell — reversible with `pm enable --user 0 <package>`.
-68 packages disabled total.
+Method: `pm disable-user --user 0 <package>` over adb shell — reversible with `pm enable --user 0 <package>` (only while the device boots — see Caveats).
+67 packages disabled total. **Reboot once after any pass** — a bad disable only shows on the next boot.
 
 ## Google / GMS
 
@@ -41,7 +41,8 @@ System-level ad attribution APIs, unrelated to GMS.
 | `com.android.adservices.api` | Ad attribution/tracking API |
 | `com.android.ondevicepersonalization.services` | Ad personalization |
 | `com.android.federatedcompute.services` | Ad personalization (federated learning) |
-| `com.android.sdksandbox` | Supporting infra for the above three |
+
+`com.android.sdksandbox` (their supporting infra) is deliberately **kept** — disabling it bootloops the device. See Caveats.
 
 ## viwoods first-party — redundant with sideloaded apps
 
@@ -146,7 +147,9 @@ Real hardware (`android.hardware.location.gps` is genuinely present, unlike the 
 
 ## Caveats — deliberately NOT disabled
 
+- **`com.android.sdksandbox`** — observed boot-breaker. PackageManager requires it at every boot; without it `system_server` crashes (`There should exactly one sdk sandbox package; found 0`) and zygote restarts forever. Silent until the next reboot — earlier versions of this list disabled it and the first reboot (an OTA) bootlooped the device. Other packages may be boot-critical too; this list only records what was observed, so reboot after every pass. Recovery (works for any package): [`../recovery/bootloop-after-disable.md`](../recovery/bootloop-after-disable.md).
 - **`com.android.phone`** (MtkTeleService) — looks like a dialer app by name, actually registers the real `CellularDataService`, `CellularNetworkService`, and `TelephonyConnectionService`. Disabling it breaks mobile data entirely. Confirmed via `dumpsys package`.
 - **Full telephony/SIM stack** — this device has genuine cellular hardware (confirmed via `pm list features`: `android.hardware.telephony`, `.calling`, `.data`, `.gsm`, `.ims`, `.messaging`, `.radio.access`, `.subscription` are all real, unlike the speaker feature below). An earlier pass mistakenly disabled the whole stack based on a flawed `grep` check that silently returned empty; caught and reverted.
 - **No built-in speaker** — despite `android.hardware.audio.output` being declared and AudioManager reporting normal routing/volume to a "speaker" device, this hardware has no physical speaker (confirmed via device reviews + a real-world test with all audio-path checks green but zero sound). Audio output is Bluetooth-only. Not a package issue — nothing to disable/enable here.
+- **`com.android.uwb.resources` self-re-enables** — the OS sets it enabled during boot (`enabledCaller=android`), so disabling never sticks. Harmless; left in the list for completeness.
 - **`com.google.android.gms` self-re-enables** — observed twice: GMS silently flips back to enabled after certain batches of `pm disable-user` calls on other packages (not exclusive to touching gms-related packages). Cause not identified — some vendor watchdog likely restores it on package-state changes. Re-check after any future debloat pass with `pm list packages -d | grep gms`.
