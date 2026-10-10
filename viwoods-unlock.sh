@@ -62,7 +62,8 @@ else
     exit 1
   fi
 fi
-
+SERIAL="$("$ADB" devices | awk '$2 == "device" {print $1}')"
+TARGET=(-s "$SERIAL")
 run_shell() { "$ADB" ${TARGET[@]+"${TARGET[@]}"} shell "$@"; }
 
 if [[ "$ACTION" == "on" ]]; then
